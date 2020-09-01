@@ -1,0 +1,75 @@
+/*
+| -----------------------------------------------------------------------------------------------
+| this script aims to test some indexs for mining
+| -----------------------------------------------------------------------------------------------
+|
+| require auxiliars functions to get collections and vegetations index
+| @param string - the directory name of helper functions
+*/
+
+var r = require ('users/engsoaresfilho/code:helpers.js');
+
+/*
+|
+| import the color scheme for index
+|
+*/
+
+var palettes = require ('users/gena/packages:palettes');
+var palettes_mb = require('users/mapbiomas/modules:Palettes.js');
+
+/*
+|
+| define your standard params
+| @params feateareCollection, string, string, int
+|
+*/
+
+var ROI = geometry;
+var T0 = '2020-06-01';
+var T1 = '2020-08-21';
+var CLOUD_COVER = 5;
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| implements methods to get ImageCollections e vegetation index
+| -------------------------------------------------------------------------------------------------------------
+| see helpers.js file to get more info
+*/
+Map.centerObject(ROI, 13)
+
+var collection = r.getSr.filterCollectionS2(ROI, T0, T1, CLOUD_COVER)
+      // apply method .map( callback function ) and set a function as param
+      .map(r.miningIndex.addBSI)
+      .map(r.indexSr.addNdvi)
+      .map(r.miningIndex.addFe3)
+      .median();
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| display data
+| -------------------------------------------------------------------------------------------------------------
+*/
+
+Map.addLayer(collection, {
+  bands:['red','green', 'blue'],
+  min:150,
+  max:2500
+}, 'RGB');
+
+Map.addLayer(collection, {
+  bands:['BSI'],
+  palette: palettes.colorbrewer.RdYlGn[11].reverse(),
+  min:3855.962158203125,
+  max:11182.2080078125
+}, 'BSI');
+
+Map.addLayer(collection, {
+  bands:['ndvi'],
+  palette: palettes.colorbrewer.RdYlGn[11].reverse(),
+  min:-0.2920151948928833,
+  max:0.5308732390403748
+}, 'NDVI');
+
+
+      
