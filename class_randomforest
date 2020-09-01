@@ -1,0 +1,164 @@
+/*
+| -----------------------------------------------------------------------------------------------
+| this script aims to classify the land cover using supervised classification
+| -----------------------------------------------------------------------------------------------
+|
+| require auxiliars functions to get collections and vegetations index
+| @param string - the directory name of helper functions
+*/
+
+var r = require ('users/engsoaresfilho/code:helpers.js');
+
+/*
+|
+| import the color scheme for index
+|
+*/
+
+var palettes = require ('users/gena/packages:palettes');
+var palettes_mb = require('users/mapbiomas/modules:Palettes.js');
+
+/*
+|
+| define your standard params
+| @params feateareCollection, string, string, int
+|
+*/
+
+var ROI = geometry;
+var T0 = '2020-06-01';
+var T1 = '2020-08-21';
+var CLOUD_COVER = 5;
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| implements methods to get ImageCollections e vegetation index
+| -------------------------------------------------------------------------------------------------------------
+| see helpers.js file to get more info
+*/
+
+var bands = ['red','green','blue', 'nir', 'ndvi', 'redEdge1', 'redEdge2'];
+
+var collection = r.getSr.filterCollectionS2(ROI, T0, T1, CLOUD_COVER)
+      // apply method .map( callback function ) and set a function as param
+      .map(r.indexSr.addNdvi)
+      .map(r.indexSr.addNdwi)
+      .map(r.indexSr.addEviSe)
+      .map(r.indexSr.addLac);
+
+var s1_image = r.getSr.filterCollectionS1('IW', ROI, 'desc').filterDate(T0, T1).median().clip(ROI);
+    s1_image = s1_image.addBands( s1_image.normalizedDifference(['VV', 'VH']).rename('VV_VH') );
+
+// converts an ImageCollection into an Image applying the median method
+var s2_image = collection.median().select(bands);
+
+var composite = s2_image.addBands(s1_image);
+
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| using mapbiomas to help
+| -------------------------------------------------------------------------------------------------------------
+*/
+
+var year = 2018
+var clas = 12;
+
+var mb = ee.Image('projects/mapbiomas-workspace/public/collection4_1/mapbiomas_collection41_integration_v1');
+    mb = mb.select('classification_' + year).clip(ROI);
+    //mb = mb.neq(clas).selfMask();
+
+//var mask = mb.focal_max(5, 'circle','pixels',2, ee.Kernel.circle(5));
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| collecting samples
+| -------------------------------------------------------------------------------------------------------------
+*/
+
+var samples = ee.FeatureCollection([
+  ee.Feature(forest, {'id':1}),
+  ee.Feature(pasture, {'id':2}),
+  ee.Feature(mining, {'id':3}),
+  //ee.Feature(water, {'id':4})
+]);
+
+composite = composite.mask(mb);
+
+var sample_region = composite.mask(mb).sampleRegions({
+  collection: samples,
+  properties: ['id'],
+  scale:10
+});
+
+var classifier = ee.Classifier.smileRandomForest(50).train(sample_region, 'id');
+var classified = composite.classify(classifier);
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| spatial filters
+| -------------------------------------------------------------------------------------------------------------
+*/
+
+var connected_px = 100; // min connected pixels
+var min_area = 1; // min area = 1 ha
+var obj_size = ee.Image.pixelArea();
+
+var px_noise = classified.connectedPixelCount(connected_px + 1, false); // get connected pixels
+    px_noise = px_noise.mask(px_noise.lt(connected_px)); // masks the filtered pixels
+    px_noise = px_noise.multiply(obj_size).divide(ee.Image(10000)); // get pixel area in ha
+    px_noise = px_noise.mask(px_noise.lte(min_area)); // masks according the min area (1ha)
+
+var kernel = ee.Kernel.circle({radius: 1}); // creates a circle kernel
+var opened = classified
+             .focal_min({kernel: kernel, iterations: 5})
+             .focal_max({kernel: kernel, iterations: 5});
+
+var classified_filtered = classified.where(px_noise, opened); // replace the noise pixel
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| display results
+| -------------------------------------------------------------------------------------------------------------
+*/
+
+/*
+Map.addLayer(s1_image, {
+  bands:['VV', 'VH', 'VV_VH'],
+  min:-26,
+  max: 0.5
+}, 'S2', false);
+
+
+*/
+
+Map.addLayer(classified_filtered.randomVisualizer(), null, 'Filtered Classification'); 
+
+Map.addLayer(composite, {
+  bands:['red','green', 'blue'],
+  min:200,
+  max:2600
+});
+
+Map.centerObject(ROI, 12)
+
+/*
+| -------------------------------------------------------------------------------------------------------------
+| exports to asset
+| -------------------------------------------------------------------------------------------------------------
+
+
+Export.image.toAsset({
+  image:classified_filtered,
+  description: 'natural_areas',
+  region:ROI.geometry().bounds(),
+  scale:10,
+  maxPixels: 1e13
+});
+*/
+
+
+
+
+
+
