@@ -1,0 +1,10 @@
+var mb = ee.Image('projects/mapbiomas-workspace/public/collection5/mapbiomas_collection50_integration_v1');
+    mb = mb.select('classification_2019').clip(table);
+    mb = mb.mask(mb.eq(30));
+
+//var palettes = require('users/gena/packages:palettes');
+//var palette = palettes.colorbrewer.Paired[12];
+
+Map.addLayer(mb, {
+    palette: ['0000FF'],
+});
