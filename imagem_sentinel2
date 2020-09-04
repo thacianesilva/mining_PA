@@ -1,0 +1,22 @@
+var S2 = ee.ImageCollection ('COPERNICUS/S2') 
+  .filterDate('2020-06-01', '2020-08-31')
+  .filterBounds(geo)
+  .filterMetadata("CLOUDY_PIXEL_PERCENTAGE", "less_than", 15);
+
+var Mediana = S2.median();
+
+var RecorteS2 = Mediana.clip(geo);
+
+Map.addLayer(geo)
+
+Map.addLayer(RecorteS2, {
+   bands:['B11','B8','B4'],
+  min:581.8,
+  max:4604.2,
+  gamma:0.92
+},'RGB', true);
+  
+
+Map.addLayer(min_2018, {color: 'CD0000'}, 'min_2018');
+Map.addLayer(am_tnc, {color: 'EE1289'}, 'am_tnc');
+Map.addLayer(terraclass_2014, {color: '8B008B'}, 'tc_2014');
